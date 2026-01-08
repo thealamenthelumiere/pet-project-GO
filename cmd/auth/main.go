@@ -1,9 +1,9 @@
 package main
 
 import (
-    "fmt"       // ← ДОБАВЬТЕ этот импорт
-    "log"       // ← Этот уже есть
-    "net/http"  // ← Этот уже есть
+    "fmt"       
+    "log"       
+    "net/http" 
 
     "github.com/thealamenthelumiere/pet-project-GO/configs"
     "github.com/thealamenthelumiere/pet-project-GO/internal/handler"
@@ -13,11 +13,11 @@ import (
 
 func main() {
     // Загружаем конфигурацию
-    cfg := configs.LoadConfig()  // ← L (заглавная), а не l (строчная)
+    cfg := configs.LoadConfig()  
     
     // Инициализируем зависимости
-    userStore := store.NewInMemoryStore()  // ← InMemory, а не IntMemory
-    userService := service.NewUserService(userStore, cfg.Secret)  // ← UserService, а не UsersService
+    userStore := store.NewInMemoryStore()  
+    userService := service.NewUserService(userStore, cfg.Secret)  
     loginHandler := handler.NewLoginHandler(userService)
     verifyHandler := handler.NewVerifyHandler(userService)
 
@@ -26,7 +26,7 @@ func main() {
     http.HandleFunc("/verify", verifyHandler.Handle)
 
     // Запускаем сервер
-    address := fmt.Sprintf(":%d", cfg.Port)  // ← правильный формат
+    address := fmt.Sprintf(":%d", cfg.Port)  
     
     log.Printf("Starting server on %s", address)  // ← правильный синтаксис
     if err := http.ListenAndServe(address, nil); err != nil {  // ← правильный синтаксис
