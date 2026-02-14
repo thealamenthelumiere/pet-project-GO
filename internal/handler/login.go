@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -13,77 +15,63 @@ type LoginHandler struct {
 }
 
 func NewLoginHandler(userService service.UserService) *LoginHandler {
-	return &LoginHandler{
-		userService: userService,
-	}
+	return &LoginHandler{userService: userService}
 }
 
+// Handle обрабатывает POST /login с Basic Auth.
 func (h *LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	// Проверяем метод
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Извлекаем Basic Auth заголовок
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Authorization header required"))
-		return
-	}
-
-	// Проверяем формат
-	if !strings.HasPrefix(authHeader, "Basic ") {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Invalid authorization format"))
-		return
-	}
-
-	// Декодируем credentials
-	encodedCredentials := strings.TrimPrefix(authHeader, "Basic ")
-	decoded, err := base64.StdEncoding.DecodeString(encodedCredentials)
+	// Извлекаем username и password из заголовка Authorization: Basic ...
+	username, password, err := extractBasicAuth(r)
 	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Invalid credentials encoding"))
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	// Разбираем username:password
-	credentials := strings.SplitN(string(decoded), ":", 2)
-	if len(credentials) != 2 {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Invalid credentials format"))
-		return
-	}
-
-	username, password := credentials[0], credentials[1]
-
-	// Валидируем учетные данные
-	valid, err := h.userService.ValidateCredentials(username, password)
+	// Вызываем сервис — он проверяет credentials и возвращает пару токенов
+	tokenPair, err := h.userService.Login(username, password)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		switch {
+		case errors.Is(err, service.ErrInvalidCredentials):
+			http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+		default:
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	if !valid {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Invalid credentials"))
-		return
-	}
-
-	// Генерируем токен
-	token, err := h.userService.GenerateToken(username)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Failed to generate token"))
-		return
-	}
-
-	// Возвращаем токен
-	w.Header().Set("Authorization", "Bearer "+token)
+	// Успех: возвращаем access_token и refresh_token в JSON
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status": "success", "message": "Login successful"}`))
+	json.NewEncoder(w).Encode(tokenPair)
+}
+
+// extractBasicAuth извлекает логин и пароль из заголовка Authorization: Basic <base64>.
+// Возвращает username, password и ошибку с понятным текстом для клиента.
+func extractBasicAuth(r *http.Request) (string, string, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", "", errors.New("authorization header required")
+	}
+
+	if !strings.HasPrefix(authHeader, "Basic ") {
+		return "", "", errors.New("invalid authorization format, use Basic scheme")
+	}
+
+	encoded := strings.TrimPrefix(authHeader, "Basic ")
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", "", errors.New("invalid base64 encoding")
+	}
+
+	creds := strings.SplitN(string(decoded), ":", 2)
+	if len(creds) != 2 {
+		return "", "", errors.New("invalid credentials format, expected username:password")
+	}
+
+	return creds[0], creds[1], nil
 }

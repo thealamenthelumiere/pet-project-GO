@@ -1,111 +1,154 @@
 package handler
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/thealamenthelumiere/pet-project-GO/internal/service"
 	mock_service "github.com/thealamenthelumiere/pet-project-GO/internal/service/mocks"
 )
 
-func TestVerifyHandler_Success(t *testing.T) {
+// encodeBasicAuth оставлен для возможных тестов с Basic Auth, но для /verify используется Bearer.
+
+
+func TestVerifyHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockUserService := mock_service.NewMockUserService(ctrl)
+	const (
+		validRefreshToken   = "valid-refresh-token"
+		expiredRefreshToken = "expired-refresh-token"
+		invalidRefreshToken = "invalid-refresh-token"
+		newAccessToken      = "new-access-token"
+		newRefreshToken     = "new-refresh-token"
+	)
 
-	mockUserService.EXPECT().
-		RefreshToken("valid-token").
-		Return("new-valid-token", nil).
-		Times(1)
+	tests := []struct {
+		name           string
+		authHeader     string
+		setupMock      func(*mock_service.MockUserService)
+		expectedStatus int
+		expectedBody   func(*testing.T, []byte)
+	}{
+		{
+			name:       "successful token refresh",
+			authHeader: "Bearer " + validRefreshToken,
+			setupMock: func(m *mock_service.MockUserService) {
+				m.EXPECT().
+					RefreshToken(validRefreshToken).
+					Return(&service.TokenPair{
+						AccessToken:  newAccessToken,
+						RefreshToken: newRefreshToken,
+					}, nil).
+					Times(1)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody: func(t *testing.T, body []byte) {
+				var tp service.TokenPair
+				err := json.Unmarshal(body, &tp)
+				require.NoError(t, err)
+				assert.Equal(t, newAccessToken, tp.AccessToken)
+				assert.Equal(t, newRefreshToken, tp.RefreshToken)
+			},
+		},
+		{
+			name:           "missing authorization header",
+			authHeader:     "",
+			setupMock:      func(m *mock_service.MockUserService) {},
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "authorization header required")
+			},
+		},
+		{
+			name:           "invalid auth scheme (not Bearer)",
+			authHeader:     "Basic xxx",
+			setupMock:      func(m *mock_service.MockUserService) {},
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "invalid authorization header format, use Bearer scheme")
+			},
+		},
+		{
+			name:           "malformed token (empty after Bearer)",
+			authHeader:     "Bearer ",
+			setupMock:      func(m *mock_service.MockUserService) {},
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "empty bearer token")
+			},
+		},
+		{
+			name:       "token expired",
+			authHeader: "Bearer " + expiredRefreshToken,
+			setupMock: func(m *mock_service.MockUserService) {
+				m.EXPECT().
+					RefreshToken(expiredRefreshToken).
+					Return(nil, service.ErrTokenExpired). 
+					Times(1)
+			},
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "Refresh token expired")
+			},
+		},
+		{
+			name:       "invalid token",
+			authHeader: "Bearer " + invalidRefreshToken,
+			setupMock: func(m *mock_service.MockUserService) {
+				m.EXPECT().
+					RefreshToken(invalidRefreshToken).
+					Return(nil, service.ErrInvalidToken). 
+					Times(1)
+			},
+			expectedStatus: http.StatusUnauthorized,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "Invalid refresh token")
+			},
+		},
+		{
+			name:       "internal server error",
+			authHeader: "Bearer " + validRefreshToken,
+			setupMock: func(m *mock_service.MockUserService) {
+				m.EXPECT().
+					RefreshToken(validRefreshToken).
+					Return(nil, errors.New("unexpected db error")).
+					Times(1)
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), "Internal server error")
+			},
+		},
+	}
 
-	handler := NewVerifyHandler(mockUserService)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockUserService := mock_service.NewMockUserService(ctrl)
+			tt.setupMock(mockUserService)
 
-	req := httptest.NewRequest("GET", "/verify", nil)
-	req.Header.Set("Authorization", "Bearer valid-token")
+			handler := NewVerifyHandler(mockUserService)
 
-	rr := httptest.NewRecorder()
-	handler.Handle(rr, req)
+			req := httptest.NewRequest(http.MethodPost, "/verify", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
 
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "Bearer new-valid-token", rr.Header().Get("Authorization"))
-}
+			rr := httptest.NewRecorder()
+			handler.Handle(rr, req)
 
-func TestVerifyHandler_ExpiredToken(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+			assert.Equal(t, tt.expectedStatus, rr.Code)
 
-	mockUserService := mock_service.NewMockUserService(ctrl)
-
-	mockUserService.EXPECT().
-		RefreshToken("expired-token").
-		Return("", service.NewTokenError("token expired")).
-		Times(1)
-
-	handler := NewVerifyHandler(mockUserService)
-
-	req := httptest.NewRequest("GET", "/verify", nil)
-	req.Header.Set("Authorization", "Bearer expired-token")
-
-	rr := httptest.NewRecorder()
-	handler.Handle(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-func TestVerifyHandler_InvalidToken(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockUserService := mock_service.NewMockUserService(ctrl)
-
-	mockUserService.EXPECT().
-		RefreshToken("invalid-token").
-		Return("", service.NewTokenError("invalid token")).
-		Times(1)
-
-	handler := NewVerifyHandler(mockUserService)
-
-	req := httptest.NewRequest("GET", "/verify", nil)
-	req.Header.Set("Authorization", "Bearer invalid-token")
-
-	rr := httptest.NewRecorder()
-	handler.Handle(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-func TestVerifyHandler_MissingAuthHeader(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockUserService := mock_service.NewMockUserService(ctrl)
-	handler := NewVerifyHandler(mockUserService)
-
-	req := httptest.NewRequest("GET", "/verify", nil)
-	rr := httptest.NewRecorder()
-
-	handler.Handle(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-func TestVerifyHandler_InvalidAuthScheme(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockUserService := mock_service.NewMockUserService(ctrl)
-	handler := NewVerifyHandler(mockUserService)
-
-	req := httptest.NewRequest("GET", "/verify", nil)
-	req.Header.Set("Authorization", "Basic username:password")
-
-	rr := httptest.NewRecorder()
-	handler.Handle(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+			if tt.expectedBody != nil {
+				tt.expectedBody(t, rr.Body.Bytes())
+			}
+		})
+	}
 }

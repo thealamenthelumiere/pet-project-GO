@@ -1,107 +1,113 @@
 package service
 
 import (
+    
+    "errors"
     "time"
+    
     "github.com/golang-jwt/jwt/v5"
+
+    "github.com/thealamenthelumiere/pet-project-GO/internal/store"
 )
 
-// User представляет пользователя
-type User struct {
-    Username string
-    Password string
+var (
+	ErrInvalidToken     = errors.New("invalid token")
+	ErrTokenExpired     = errors.New("token expired")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrUserNotFound     = errors.New("user not found")
+)
+type TokenPair struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
 }
-
-// Claims для JWT
-type Claims struct {
-    Username string `json:"sub"`
-    jwt.RegisteredClaims
-}
-
-// TokenError тип ошибки для токенов
-type TokenError struct {
-    message string
-}
-
-func NewTokenError(message string) *TokenError {
-    return &TokenError{message: message}
-}
-
-func (e *TokenError) Error() string {
-    return e.message
-}
-
-// UserStore интерфейс для хранилища
-type UserStore interface {
-    Get(username string) (User, error)
-}
-
-// UserService интерфейс бизнес-логики
 type UserService interface {
-    ValidateCredentials(username, password string) (bool, error)
-    GenerateToken(username string) (string, error)
-    RefreshToken(token string) (string, error)
+	Login(username, password string) (*TokenPair, error)
+	RefreshToken(refreshToken string) (*TokenPair, error)
 }
-
-// userService реализация (неэкспортируемая)
+// userService — конкретная реализация.
 type userService struct {
-    store  UserStore
-    secret string
+	store  store.UserStore
+	secret string
 }
 
-// NewUserService конструктор (ЭКСПОРТИРУЕМАЯ функция)
-func NewUserService(store UserStore, secret string) UserService {
-    return &userService{
-        store:  store,
-        secret: secret,
-    }
+// NewUserService — конструктор.
+func NewUserService(store store.UserStore, secret string) UserService {
+	return &userService{
+		store:  store,
+		secret: secret,
+	}
 }
 
-// GenerateToken создает JWT токен
-func (s *userService) GenerateToken(username string) (string, error) {
-    claims := &Claims{
-        Username: username,
-        RegisteredClaims: jwt.RegisteredClaims{
-            ExpiresAt: jwt.NewNumericDate(time.Now().Add(60 * time.Minute)),
-            IssuedAt:  jwt.NewNumericDate(time.Now()),
-            Subject:   username,
-        },
-    }
-    
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-    return token.SignedString([]byte(s.secret))
+// Login проверяет учётные данные и возвращает пару токенов.
+func (s *userService) Login(username, password string) (*TokenPair, error) {
+	user, err := s.store.Get(username)
+	if err != nil {
+		// Если пользователь не найден, возвращаем общую ошибку аутентификации.
+		return nil, ErrInvalidCredentials
+	}
+	if user.Password != password {
+		return nil, ErrInvalidCredentials
+	}
+
+	accessToken, err := s.generateToken(username, 15*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	refreshToken, err := s.generateToken(username, 24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
 }
 
-// ValidateCredentials проверяет учетные данные
-func (s *userService) ValidateCredentials(username, password string) (bool, error) {
-    user, err := s.store.Get(username)
-    if err != nil {
-        return false, err
-    }
+// RefreshToken проверяет refresh token и выдаёт новую пару.
+func (s *userService) RefreshToken(refreshToken string) (*TokenPair, error) {
+	claims := &jwt.RegisteredClaims{}
+	token, err := jwt.ParseWithClaims(refreshToken, claims, func(t *jwt.Token) (interface{}, error) {
+		return []byte(s.secret), nil
+	})
+	if err != nil {
+		// Проверяем, истёк ли токен
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, ErrTokenExpired
+		}
+		return nil, ErrInvalidToken
+	}
+	if !token.Valid {
+		return nil, ErrInvalidToken
+	}
 
-    return user.Password == password, nil
+	username := claims.Subject
+	if username == "" {
+		return nil, ErrInvalidToken
+	}
+
+	accessToken, err := s.generateToken(username, 15*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	newRefreshToken, err := s.generateToken(username, 24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
+	}, nil
 }
 
-// RefreshToken обновляет токен
-func (s *userService) RefreshToken(tokenString string) (string, error) {
-    // Парсим и валидируем токен
-    claims := &Claims{}
-    token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-        return []byte(s.secret), nil
-    })
-
-    if err != nil {
-        return "", NewTokenError("invalid token")
-    }
-
-    if !token.Valid {
-        return "", NewTokenError("invalid token")
-    }
-
-    // Проверяем что токен не истек (имеет смысл обновлять)
-    if claims.ExpiresAt != nil && claims.ExpiresAt.Time.Before(time.Now()) {
-        return "", NewTokenError("token expired")
-    }
-
-    // Генерируем новый токен
-    return s.GenerateToken(claims.Username)
+// generateToken — внутренний хелпер.
+func (s *userService) generateToken(username string, ttl time.Duration) (string, error) {
+	claims := jwt.RegisteredClaims{
+		Subject:   username,
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(s.secret))
 }

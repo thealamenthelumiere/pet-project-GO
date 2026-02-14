@@ -1,70 +1,74 @@
 package handler
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/thealamenthelumiere/pet-project-GO/internal/service"
 )
 
+// VerifyHandler обрабатывает запросы на обновление токенов
 type VerifyHandler struct {
 	userService service.UserService
 }
 
 func NewVerifyHandler(userService service.UserService) *VerifyHandler {
-	return &VerifyHandler{
-		userService: userService,
-	}
+	return &VerifyHandler{userService: userService}
 }
 
+// Handle — единственный метод, только POST
 func (h *VerifyHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	// Проверяем метод (можно использовать POST или GET, обычно POST для обновления токена)
-	if r.Method != http.MethodPost && r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Извлекаем Bearer токен
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Authorization header required"))
-		return
-	}
-
-	// Проверяем формат Bearer
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Invalid authorization format. Use Bearer scheme"))
-		return
-	}
-
-	// Извлекаем токен
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-
-	// Обновляем токен
-	newToken, err := h.userService.RefreshToken(token)
+	// Извлекаем refresh token из заголовка Authorization
+	refreshToken, err := extractBearerToken(r)
 	if err != nil {
-		// Проверяем тип ошибки для более точного ответа
-		if err.Error() == "token expired" {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Token expired"))
-			return
-		}
-		if err.Error() == "invalid token" {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Invalid token"))
-			return
-		}
-
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal server error"))
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	// Возвращаем новый токен
-	w.Header().Set("Authorization", "Bearer "+newToken)
+	// Вызываем сервис для получения новой пары токенов
+	tokenPair, err := h.userService.RefreshToken(refreshToken)
+	if err != nil {
+		// Обрабатываем доменные ошибки с помощью errors.Is
+		switch {
+		case errors.Is(err, service.ErrTokenExpired):
+			http.Error(w, "Refresh token expired", http.StatusUnauthorized)
+		case errors.Is(err, service.ErrInvalidToken):
+			http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		default:
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Возвращаем токены в теле ответа (JSON)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status": "success", "message": "Token refreshed"}`))
+	json.NewEncoder(w).Encode(tokenPair)
+}
+
+// extractBearerToken достаёт Bearer-токен из заголовка Authorization
+func extractBearerToken(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", errors.New("authorization header required")
+	}
+
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return "", errors.New("invalid authorization header format, use Bearer scheme")
+	}
+
+	token := parts[1]
+	if token == "" {
+		return "", errors.New("empty bearer token")
+	}
+
+	return token, nil
 }
