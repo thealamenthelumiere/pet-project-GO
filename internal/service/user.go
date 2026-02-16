@@ -24,7 +24,7 @@ type UserService interface {
 	Login(username, password string) (*TokenPair, error)
 	RefreshToken(refreshToken string) (*TokenPair, error)
 }
-// userService — конкретная реализация.
+
 type userService struct {
 	store  store.UserStore
 	secret string
@@ -32,7 +32,7 @@ type userService struct {
 	refreshTokenTTL time.Duration
 }
 
-// NewUserService — конструктор.
+
 func NewUserService(store store.UserStore, secret string, accessTTL, refreshTTL time.Duration) UserService {
 	return &userService{
 		store:          store,
@@ -42,7 +42,7 @@ func NewUserService(store store.UserStore, secret string, accessTTL, refreshTTL 
 	}
 }
 
-// Login проверяет учётные данные и возвращает пару токенов.
+
 func (s *userService) Login(username, password string) (*TokenPair, error) {
 	user, err := s.store.Get(username)
 	if err != nil {
@@ -67,7 +67,7 @@ func (s *userService) Login(username, password string) (*TokenPair, error) {
 	}, nil
 }
 
-// RefreshToken проверяет refresh token и выдаёт новую пару.
+
 func (s *userService) RefreshToken(refreshToken string) (*TokenPair, error) {
 	claims := &jwt.RegisteredClaims{}
 	token, err := jwt.ParseWithClaims(refreshToken, claims, func(t *jwt.Token) (interface{}, error) {
@@ -103,7 +103,7 @@ func (s *userService) RefreshToken(refreshToken string) (*TokenPair, error) {
 	}, nil
 }
 
-// generateToken — внутренний хелпер.
+
 func (s *userService) generateToken(username string, ttl time.Duration) (string, error) {
 	claims := jwt.RegisteredClaims{
 		Subject:   username,

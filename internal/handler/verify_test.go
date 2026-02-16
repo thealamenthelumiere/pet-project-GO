@@ -15,7 +15,6 @@ import (
 	mock_service "github.com/thealamenthelumiere/pet-project-GO/internal/service/mocks"
 )
 
-// encodeBasicAuth оставлен для возможных тестов с Basic Auth, но для /verify используется Bearer.
 
 
 func TestVerifyHandler(t *testing.T) {

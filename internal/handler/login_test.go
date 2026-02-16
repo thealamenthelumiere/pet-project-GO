@@ -13,10 +13,10 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/thealamenthelumiere/pet-project-GO/internal/service" 
-	mock_service "github.com/thealamenthelumiere/pet-project-GO/internal/service/mocks" // сгенерированные моки
+	mock_service "github.com/thealamenthelumiere/pet-project-GO/internal/service/mocks" 
 )
 
-// encodeBasicAuth возвращает строку для заголовка Authorization: Basic <base64>
+
 func encodeBasicAuth(username, password string) string {
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))
@@ -26,7 +26,7 @@ func TestLoginHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Фиксированные тестовые данные
+	
 	const (
 		validUsername   = "admin"
 		validPassword   = "password123"
@@ -35,13 +35,13 @@ func TestLoginHandler(t *testing.T) {
 		refreshToken    = "fake-refresh-token"
 	)
 
-	// Таблица тестовых случаев
+	
 	tests := []struct {
 		name           string
-		authHeader     string                     // заголовок Authorization (пустая строка = не ставить)
-		setupMock      func(*mock_service.MockUserService) // настройка ожиданий мока
-		expectedStatus int                        // ожидаемый HTTP-статус
-		expectedBody   func(*testing.T, []byte)   // опциональная проверка тела ответа
+		authHeader     string                     
+		setupMock      func(*mock_service.MockUserService) 
+		expectedStatus int                        
+		expectedBody   func(*testing.T, []byte)   
 	}{
 		{
 			name:       "successful login",
@@ -146,7 +146,7 @@ func TestLoginHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Создаём мок и настраиваем его
+			
 			mockUserService := mock_service.NewMockUserService(ctrl)
 			tt.setupMock(mockUserService)
 
@@ -160,10 +160,10 @@ func TestLoginHandler(t *testing.T) {
 			rr := httptest.NewRecorder()
 			handler.Handle(rr, req)
 
-			// Проверяем статус
+			
 			assert.Equal(t, tt.expectedStatus, rr.Code)
 
-			// Проверяем тело ответа, если есть функция проверки
+			
 			if tt.expectedBody != nil {
 				tt.expectedBody(t, rr.Body.Bytes())
 			}
