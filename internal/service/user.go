@@ -4,7 +4,7 @@ import (
     
     "errors"
     "time"
-    
+
     "github.com/golang-jwt/jwt/v5"
 
     "github.com/thealamenthelumiere/pet-project-GO/internal/store"
@@ -28,13 +28,17 @@ type UserService interface {
 type userService struct {
 	store  store.UserStore
 	secret string
+	accessTokenTTL time.Duration
+	refreshTokenTTL time.Duration
 }
 
 // NewUserService — конструктор.
-func NewUserService(store store.UserStore, secret string) UserService {
+func NewUserService(store store.UserStore, secret string, accessTTL, refreshTTL time.Duration) UserService {
 	return &userService{
-		store:  store,
-		secret: secret,
+		store:          store,
+		secret:         secret,
+		accessTokenTTL: accessTTL,
+		refreshTokenTTL: refreshTTL,
 	}
 }
 
@@ -42,7 +46,6 @@ func NewUserService(store store.UserStore, secret string) UserService {
 func (s *userService) Login(username, password string) (*TokenPair, error) {
 	user, err := s.store.Get(username)
 	if err != nil {
-		// Если пользователь не найден, возвращаем общую ошибку аутентификации.
 		return nil, ErrInvalidCredentials
 	}
 	if user.Password != password {
@@ -71,7 +74,6 @@ func (s *userService) RefreshToken(refreshToken string) (*TokenPair, error) {
 		return []byte(s.secret), nil
 	})
 	if err != nil {
-		// Проверяем, истёк ли токен
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrTokenExpired
 		}

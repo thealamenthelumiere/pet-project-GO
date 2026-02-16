@@ -1,47 +1,38 @@
 package configs
 
 import (
-	
-	"github.com/joho/godotenv"
-	"github.com/spf13/viper"
+    "time"
+
+    "github.com/joho/godotenv"
+    "github.com/spf13/viper"
 )
 
-// Config содержит все настройки приложения.
-// Теги mapstructure нужны для корректного маппинга из Viper.
 type Config struct {
-	Port   int    `mapstructure:"PORT"`
-	Secret string `mapstructure:"SECRET_KEY"`
+    Port            int           `mapstructure:"PORT"`
+    Secret          string        `mapstructure:"SECRET_KEY"`
+    AccessTokenTTL  time.Duration `mapstructure:"ACCESS_TOKEN_TTL"`
+    RefreshTokenTTL time.Duration `mapstructure:"REFRESH_TOKEN_TTL"`
 }
 
-// LoadConfig загружает конфигурацию из .env, файлов и переменных окружения.
-// Возвращает указатель на Config и ошибку (если не удалось распарсить).
 func LoadConfig() (*Config, error) {
-	// 1. Загружаем .env файл (если есть) в окружение.
-	// Ошибка игнорируется – файл может отсутствовать.
-	_ = godotenv.Load()
+    _ = godotenv.Load()
 
-	// 2. Настраиваем Viper.
-	viper.SetConfigName("config")      // имя файла без расширения
-	viper.SetConfigType("yaml")        // поддерживаются yaml, json, toml, env и др.
-	viper.AddConfigPath(".")           // ищем в текущей директории
-	viper.AddConfigPath("./configs")   // или в подпапке configs
+    viper.SetConfigName("config")
+    viper.SetConfigType("yaml")
+    viper.AddConfigPath(".")
+    viper.AddConfigPath("./configs")
 
-	// 3. Значения по умолчанию.
-	viper.SetDefault("PORT", 8080)
-	viper.SetDefault("SECRET_KEY", "default-secret-key-change-in-production")
+    viper.SetDefault("PORT", 8080)
+    viper.SetDefault("SECRET_KEY", "default-secret-key-change-in-production")
+    viper.SetDefault("ACCESS_TOKEN_TTL", "15m")
+    viper.SetDefault("REFRESH_TOKEN_TTL", "24h")
 
-	// 4. Автоматически читать переменные окружения.
-	viper.AutomaticEnv()
+    viper.AutomaticEnv()
+    _ = viper.ReadInConfig()
 
-	// 5. Пытаемся прочитать файл конфигурации (необязательно).
-	// Если файла нет – работаем с дефолтами и переменными окружения.
-	_ = viper.ReadInConfig()
-
-	// 6. Десериализуем всё в структуру Config.
-	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, err
-	}
-
-	return &cfg, nil
+    var cfg Config
+    if err := viper.Unmarshal(&cfg); err != nil {
+        return nil, err
+    }
+    return &cfg, nil
 }

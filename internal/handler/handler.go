@@ -9,7 +9,7 @@ import (
 	"github.com/thealamenthelumiere/pet-project-GO/internal/service"
 )
 
-// VerifyHandler обрабатывает запросы на обновление токенов
+
 type VerifyHandler struct {
 	userService service.UserService
 }
@@ -18,24 +18,23 @@ func NewVerifyHandler(userService service.UserService) *VerifyHandler {
 	return &VerifyHandler{userService: userService}
 }
 
-// Handle — единственный метод, только POST
+
 func (h *VerifyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Извлекаем refresh token из заголовка Authorization
+
 	refreshToken, err := extractBearerToken(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	// Вызываем сервис для получения новой пары токенов
+
 	tokenPair, err := h.userService.RefreshToken(refreshToken)
 	if err != nil {
-		// Обрабатываем доменные ошибки с помощью errors.Is
 		switch {
 		case errors.Is(err, service.ErrTokenExpired):
 			http.Error(w, "Refresh token expired", http.StatusUnauthorized)
@@ -47,13 +46,13 @@ func (h *VerifyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Возвращаем токены в теле ответа (JSON)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(tokenPair)
 }
 
-// extractBearerToken достаёт Bearer-токен из заголовка Authorization
+
 func extractBearerToken(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {

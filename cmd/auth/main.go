@@ -12,23 +12,28 @@ import (
 )
 
 func main() {
-    // Загружаем конфигурацию и обрабатываем возможную ошибку
+
     cfg, err := configs.LoadConfig()
     if err != nil {
         log.Fatalf("Failed to load config: %v", err)
     }
 
-    // Инициализируем зависимости
+
     userStore := store.NewInMemoryStore()
-    userService := service.NewUserService(userStore, cfg.Secret)
+    userService := service.NewUserService(
+        userStore,
+        cfg.Secret,
+        cfg.AccessTokenTTL,
+        cfg.RefreshTokenTTL,
+    )
     loginHandler := handler.NewLoginHandler(userService)
     verifyHandler := handler.NewVerifyHandler(userService)
 
-    // Настраиваем маршруты
+
     http.HandleFunc("/login", loginHandler.Handle)
     http.HandleFunc("/verify", verifyHandler.Handle)
 
-    // Запускаем сервер
+
     address := fmt.Sprintf(":%d", cfg.Port)
     log.Printf("Starting server on %s", address)
     if err := http.ListenAndServe(address, nil); err != nil {

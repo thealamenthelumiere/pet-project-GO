@@ -18,21 +18,21 @@ func NewLoginHandler(userService service.UserService) *LoginHandler {
 	return &LoginHandler{userService: userService}
 }
 
-// Handle обрабатывает POST /login с Basic Auth.
+
 func (h *LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Извлекаем username и password из заголовка Authorization: Basic ...
+
 	username, password, err := extractBasicAuth(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	// Вызываем сервис — он проверяет credentials и возвращает пару токенов
+
 	tokenPair, err := h.userService.Login(username, password)
 	if err != nil {
 		switch {
@@ -44,14 +44,13 @@ func (h *LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Успех: возвращаем access_token и refresh_token в JSON
+	
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(tokenPair)
 }
 
-// extractBasicAuth извлекает логин и пароль из заголовка Authorization: Basic <base64>.
-// Возвращает username, password и ошибку с понятным текстом для клиента.
+
 func extractBasicAuth(r *http.Request) (string, string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
