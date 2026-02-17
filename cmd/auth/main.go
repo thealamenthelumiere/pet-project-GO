@@ -12,12 +12,10 @@ import (
 )
 
 func main() {
-
     cfg, err := configs.LoadConfig()
     if err != nil {
         log.Fatalf("Failed to load config: %v", err)
     }
-
 
     userStore := store.NewInMemoryStore()
     userService := service.NewUserService(
@@ -29,10 +27,8 @@ func main() {
     loginHandler := handler.NewLoginHandler(userService)
     verifyHandler := handler.NewVerifyHandler(userService)
 
-
     http.HandleFunc("/login", loginHandler.Handle)
     http.HandleFunc("/verify", verifyHandler.Handle)
-
 
     address := fmt.Sprintf(":%d", cfg.Port)
     log.Printf("Starting server on %s", address)

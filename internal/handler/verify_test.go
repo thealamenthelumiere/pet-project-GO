@@ -15,8 +15,6 @@ import (
 	mock_service "github.com/thealamenthelumiere/pet-project-GO/internal/service/mocks"
 )
 
-
-
 func TestVerifyHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -41,7 +39,7 @@ func TestVerifyHandler(t *testing.T) {
 			authHeader: "Bearer " + validRefreshToken,
 			setupMock: func(m *mock_service.MockUserService) {
 				m.EXPECT().
-					RefreshToken(validRefreshToken).
+					RefreshToken(gomock.Any(), validRefreshToken).
 					Return(&service.TokenPair{
 						AccessToken:  newAccessToken,
 						RefreshToken: newRefreshToken,
@@ -89,7 +87,7 @@ func TestVerifyHandler(t *testing.T) {
 			authHeader: "Bearer " + expiredRefreshToken,
 			setupMock: func(m *mock_service.MockUserService) {
 				m.EXPECT().
-					RefreshToken(expiredRefreshToken).
+					RefreshToken(gomock.Any(), expiredRefreshToken).
 					Return(nil, service.ErrTokenExpired). 
 					Times(1)
 			},
@@ -103,7 +101,7 @@ func TestVerifyHandler(t *testing.T) {
 			authHeader: "Bearer " + invalidRefreshToken,
 			setupMock: func(m *mock_service.MockUserService) {
 				m.EXPECT().
-					RefreshToken(invalidRefreshToken).
+					RefreshToken(gomock.Any(), invalidRefreshToken).
 					Return(nil, service.ErrInvalidToken). 
 					Times(1)
 			},
@@ -117,7 +115,7 @@ func TestVerifyHandler(t *testing.T) {
 			authHeader: "Bearer " + validRefreshToken,
 			setupMock: func(m *mock_service.MockUserService) {
 				m.EXPECT().
-					RefreshToken(validRefreshToken).
+					RefreshToken(gomock.Any(), validRefreshToken).
 					Return(nil, errors.New("unexpected db error")).
 					Times(1)
 			},

@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	service "github.com/thealamenthelumiere/pet-project-GO/internal/service"
@@ -41,31 +42,31 @@ func (m *MockUserService) EXPECT() *MockUserServiceMockRecorder {
 }
 
 // Login mocks base method.
-func (m *MockUserService) Login(username, password string) (*service.TokenPair, error) {
+func (m *MockUserService) Login(ctx context.Context, username, password string) (*service.TokenPair, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Login", username, password)
+	ret := m.ctrl.Call(m, "Login", ctx, username, password)
 	ret0, _ := ret[0].(*service.TokenPair)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Login indicates an expected call of Login.
-func (mr *MockUserServiceMockRecorder) Login(username, password any) *gomock.Call {
+func (mr *MockUserServiceMockRecorder) Login(ctx, username, password any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Login", reflect.TypeOf((*MockUserService)(nil).Login), username, password)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Login", reflect.TypeOf((*MockUserService)(nil).Login), ctx, username, password)
 }
 
 // RefreshToken mocks base method.
-func (m *MockUserService) RefreshToken(refreshToken string) (*service.TokenPair, error) {
+func (m *MockUserService) RefreshToken(ctx context.Context, refreshToken string) (*service.TokenPair, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RefreshToken", refreshToken)
+	ret := m.ctrl.Call(m, "RefreshToken", ctx, refreshToken)
 	ret0, _ := ret[0].(*service.TokenPair)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RefreshToken indicates an expected call of RefreshToken.
-func (mr *MockUserServiceMockRecorder) RefreshToken(refreshToken any) *gomock.Call {
+func (mr *MockUserServiceMockRecorder) RefreshToken(ctx, refreshToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshToken", reflect.TypeOf((*MockUserService)(nil).RefreshToken), refreshToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshToken", reflect.TypeOf((*MockUserService)(nil).RefreshToken), ctx, refreshToken)
 }

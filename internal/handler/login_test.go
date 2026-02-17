@@ -26,7 +26,6 @@ func TestLoginHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	
 	const (
 		validUsername   = "admin"
 		validPassword   = "password123"
@@ -48,7 +47,7 @@ func TestLoginHandler(t *testing.T) {
 			authHeader: "Basic " + encodeBasicAuth(validUsername, validPassword),
 			setupMock: func(m *mock_service.MockUserService) {
 				m.EXPECT().
-					Login(validUsername, validPassword).
+					Login(gomock.Any(), validUsername, validPassword).
 					Return(&service.TokenPair{
 						AccessToken:  accessToken,
 						RefreshToken: refreshToken,
@@ -105,7 +104,7 @@ func TestLoginHandler(t *testing.T) {
 			authHeader: "Basic " + encodeBasicAuth(validUsername, invalidPassword),
 			setupMock: func(m *mock_service.MockUserService) {
 				m.EXPECT().
-					Login(validUsername, invalidPassword).
+					Login(gomock.Any(), validUsername, invalidPassword).
 					Return(nil, service.ErrInvalidCredentials).
 					Times(1)
 			},
@@ -119,7 +118,7 @@ func TestLoginHandler(t *testing.T) {
 			authHeader: "Basic " + encodeBasicAuth("unknown", "pass"),
 			setupMock: func(m *mock_service.MockUserService) {
 				m.EXPECT().
-					Login("unknown", "pass").
+					Login(gomock.Any(), "unknown", "pass").
 					Return(nil, service.ErrInvalidCredentials).
 					Times(1)
 			},
@@ -133,7 +132,7 @@ func TestLoginHandler(t *testing.T) {
 			authHeader: "Basic " + encodeBasicAuth(validUsername, validPassword),
 			setupMock: func(m *mock_service.MockUserService) {
 				m.EXPECT().
-					Login(validUsername, validPassword).
+					Login(gomock.Any(), validUsername, validPassword).
 					Return(nil, errors.New("database connection failed")).
 					Times(1)
 			},

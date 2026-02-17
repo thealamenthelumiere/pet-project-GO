@@ -18,22 +18,19 @@ func NewLoginHandler(userService service.UserService) *LoginHandler {
 	return &LoginHandler{userService: userService}
 }
 
-
 func (h *LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-
+	//r.BasicAuth ()
 	username, password, err := extractBasicAuth(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-
-	tokenPair, err := h.userService.Login(username, password)
+	tokenPair, err := h.userService.Login(r.Context(), username, password)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidCredentials):
@@ -44,12 +41,10 @@ func (h *LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(tokenPair)
 }
-
 
 func extractBasicAuth(r *http.Request) (string, string, error) {
 	authHeader := r.Header.Get("Authorization")
