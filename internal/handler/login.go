@@ -1,11 +1,9 @@
 package handler
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/thealamenthelumiere/pet-project-GO/internal/service"
 )
@@ -23,10 +21,10 @@ func (h *LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	//r.BasicAuth ()
-	username, password, err := extractBasicAuth(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+
+	username, password, ok := r.BasicAuth()
+	if !ok {
+		http.Error(w, "invalid or missing basic auth", http.StatusUnauthorized)
 		return
 	}
 
@@ -46,26 +44,3 @@ func (h *LoginHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tokenPair)
 }
 
-func extractBasicAuth(r *http.Request) (string, string, error) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return "", "", errors.New("authorization header required")
-	}
-
-	if !strings.HasPrefix(authHeader, "Basic ") {
-		return "", "", errors.New("invalid authorization format, use Basic scheme")
-	}
-
-	encoded := strings.TrimPrefix(authHeader, "Basic ")
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return "", "", errors.New("invalid base64 encoding")
-	}
-
-	creds := strings.SplitN(string(decoded), ":", 2)
-	if len(creds) != 2 {
-		return "", "", errors.New("invalid credentials format, expected username:password")
-	}
-
-	return creds[0], creds[1], nil
-}

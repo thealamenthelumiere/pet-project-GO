@@ -66,10 +66,10 @@ func TestLoginHandler(t *testing.T) {
 		{
 			name:           "missing authorization header",
 			authHeader:     "",
-			setupMock:      func(m *mock_service.MockUserService) {}, // нет вызовов
+			setupMock:      func(m *mock_service.MockUserService) {},
 			expectedStatus: http.StatusUnauthorized,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "authorization header required")
+				assert.Contains(t, string(body), "invalid or missing basic auth")
 			},
 		},
 		{
@@ -78,7 +78,7 @@ func TestLoginHandler(t *testing.T) {
 			setupMock:      func(m *mock_service.MockUserService) {},
 			expectedStatus: http.StatusUnauthorized,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "invalid authorization format, use Basic scheme")
+				assert.Contains(t, string(body), "invalid or missing basic auth")
 			},
 		},
 		{
@@ -87,7 +87,7 @@ func TestLoginHandler(t *testing.T) {
 			setupMock:      func(m *mock_service.MockUserService) {},
 			expectedStatus: http.StatusUnauthorized,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "invalid base64 encoding")
+				assert.Contains(t, string(body), "invalid or missing basic auth")
 			},
 		},
 		{
@@ -96,7 +96,7 @@ func TestLoginHandler(t *testing.T) {
 			setupMock:      func(m *mock_service.MockUserService) {},
 			expectedStatus: http.StatusUnauthorized,
 			expectedBody: func(t *testing.T, body []byte) {
-				assert.Contains(t, string(body), "invalid credentials format, expected username:password")
+				assert.Contains(t, string(body), "invalid or missing basic auth")
 			},
 		},
 		{
